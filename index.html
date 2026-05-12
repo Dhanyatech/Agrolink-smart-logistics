@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>AGROLINK - Smart Agricultural Logistics</title>
+
+    <style>
+        body{
+            font-family: Arial;
+            background:#f4f4f4;
+            padding:20px;
+        }
+
+        .container{
+            background:white;
+            padding:20px;
+            border-radius:10px;
+            max-width:500px;
+            margin:auto;
+            box-shadow:0 0 10px rgba(0,0,0,0.1);
+        }
+
+        h1{
+            color:green;
+            text-align:center;
+        }
+
+        input{
+            width:100%;
+            padding:10px;
+            margin-top:10px;
+        }
+
+        button{
+            width:100%;
+            padding:12px;
+            margin-top:20px;
+            background:green;
+            color:white;
+            border:none;
+            border-radius:5px;
+            font-size:16px;
+            cursor:pointer;
+        }
+
+        #result{
+            margin-top:20px;
+            background:#eef;
+            padding:15px;
+            border-radius:10px;
+        }
+    </style>
+</head>
+
+<body>
+
+<div style="text-align:center; margin-bottom:20px;">
+    <label><b>Select Language:</b></label>
+
+    <select id="language" onchange="changeLanguage()">
+        <option value="en">English</option>
+        <option value="hi">Hindi</option>
+        <option value="kn">Kannada</option>
+    </select>
+</div>
+
+<div class="container">
+
+    <div style="text-align:center;">
+        <button onclick="startVoice()">🎤 Speak</button>
+    </div>
+
+    <h1>🌾 AGROLINK</h1>
+
+    <input id="crop" placeholder="Crop Name">
+    <input id="quantity" type="number" placeholder="Quantity (kg)">
+    <input id="pickup" placeholder="Pickup Location">
+    <input id="destination" placeholder="Destination">
+    <input id="distance" type="number" placeholder="Distance (km)">
+
+    <button id="btn" onclick="predict()">Find Transport</button>
+
+    <div id="result"></div>
+
+</div>
+
+<script>
+
+// ---------------- LANGUAGE ----------------
+const translations = {
+    en: {
+        crop: "Crop Name",
+        quantity: "Quantity (kg)",
+        pickup: "Pickup Location",
+        destination: "Destination",
+        button: "Find Transport"
+    },
+    hi: {
+        crop: "फसल का नाम",
+        quantity: "मात्रा (किलो)",
+        pickup: "पिकअप स्थान",
+        destination: "गंतव्य",
+        button: "परिवहन खोजें"
+    },
+    kn: {
+        crop: "ಬೆಳೆ ಹೆಸರು",
+        quantity: "ಪ್ರಮಾಣ (ಕೆಜಿ)",
+        pickup: "ಪಿಕಪ್ ಸ್ಥಳ",
+        destination: "ಗಮ್ಯಸ್ಥಾನ",
+        button: "ಸಾರಿಗೆ ಹುಡುಕಿ"
+    }
+};
+
+function changeLanguage() {
+    const lang = document.getElementById("language").value;
+    localStorage.setItem("lang", lang);
+
+    document.getElementById("crop").placeholder = translations[lang].crop;
+    document.getElementById("quantity").placeholder = translations[lang].quantity;
+    document.getElementById("pickup").placeholder = translations[lang].pickup;
+    document.getElementById("destination").placeholder = translations[lang].destination;
+
+    document.getElementById("btn").innerText = translations[lang].button;
+}
+
+// ---------------- VOICE OUTPUT ----------------
+function speak(text) {
+    const msg = new SpeechSynthesisUtterance(text);
+
+    const lang = localStorage.getItem("lang") || "en";
+
+    if (lang === "hi") msg.lang = "hi-IN";
+    else if (lang === "kn") msg.lang = "kn-IN";
+    else msg.lang = "en-IN";
+
+    window.speechSynthesis.speak(msg);
+}
+
+// ---------------- VOICE INPUT ----------------
+function startVoice() {
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+
+    if (!SpeechRecognition) {
+        alert("Voice not supported");
+        return;
+    }
+
+    const recognition = new SpeechRecognition();
+
+    const lang = localStorage.getItem("lang") || "en";
+
+    recognition.lang =
+        lang === "hi" ? "hi-IN" :
+        lang === "kn" ? "kn-IN" :
+        "en-IN";
+
+    recognition.onresult = function(event) {
+        const text = event.results[0][0].transcript.toLowerCase();
+
+        if (text.includes("tomato")) document.getElementById("crop").value = "tomato";
+        if (text.includes("rice")) document.getElementById("crop").value = "rice";
+
+        const qty = text.match(/\d+/);
+        if (qty) document.getElementById("quantity").value = qty[0];
+
+        speak("Input received");
+    };
+
+    recognition.start();
+}
+
+// ---------------- PREDICT FUNCTION ----------------
+async function predict(){
+
+    const crop = document.getElementById("crop").value;
+    const quantity = document.getElementById("quantity").value;
+    const pickup = document.getElementById("pickup").value;
+    const destination = document.getElementById("destination").value;
+    const distance = document.getElementById("distance").value;
+
+    const response = await fetch("http://127.0.0.1:5000/predict",{
+
+        method:"POST",
+        headers:{
+            "Content-Type":"application/json"
+        },
+
+        body:JSON.stringify({
+            crop,
+            quantity:Number(quantity),
+            pickup,
+            destination,
+            distance:Number(distance)
+        })
+
+    });
+
+    const data = await response.json();
+
+    localStorage.setItem("trackingData", JSON.stringify(data));
+
+    // 🔥 IMPORTANT: redirect to tracking page
+    window.location.href = "/tracking";
+}
+
+</script>
+
+</body>
+</html>

@@ -1,0 +1,332 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <title>AGROLINK Live Tracking</title>
+
+    <!-- LEAFLET MAP -->
+    <link rel="stylesheet"
+        href="https://unpkg.com/leaflet/dist/leaflet.css" />
+
+    <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+
+    <style>
+
+        body{
+            font-family: Arial;
+            background:#eef3f0;
+            margin:0;
+            padding:0;
+        }
+
+        .header{
+            background:green;
+            color:white;
+            padding:15px;
+            text-align:center;
+            font-size:24px;
+            font-weight:bold;
+        }
+
+        .container{
+            padding:20px;
+            max-width:700px;
+            margin:auto;
+        }
+
+        .card{
+            background:white;
+            padding:20px;
+            border-radius:15px;
+            margin-bottom:20px;
+            box-shadow:0 4px 10px rgba(0,0,0,0.1);
+        }
+
+        .info{
+            line-height:1.8;
+        }
+
+        .eta{
+            background:#222;
+            color:white;
+            padding:15px;
+            border-radius:12px;
+            text-align:center;
+            font-size:20px;
+            margin-top:15px;
+        }
+
+        #map{
+            height:400px;
+            border-radius:15px;
+        }
+
+        .status-bar{
+            display:flex;
+            justify-content:space-between;
+            margin-top:20px;
+        }
+
+        .step{
+            text-align:center;
+            flex:1;
+        }
+
+        .active{
+            color:green;
+            font-weight:bold;
+        }
+
+        .buttons{
+            display:flex;
+            gap:10px;
+            margin-top:20px;
+        }
+
+        button{
+            flex:1;
+            padding:12px;
+            border:none;
+            border-radius:10px;
+            font-size:16px;
+            cursor:pointer;
+        }
+
+        .call{
+            background:green;
+            color:white;
+        }
+
+        .message{
+            background:#ddd;
+        }
+
+    </style>
+</head>
+
+<body>
+
+<div class="header" id="title">
+    🚛 AGROLINK LIVE TRACKING
+</div>
+
+<div class="container">
+
+    <!-- ORDER INFO -->
+    <div class="card">
+
+        <div class="info">
+
+            <p><b>Order ID:</b>
+                <span id="orderId"></span>
+            </p>
+
+            <div id="trackingInfo"></div>
+
+        </div>
+
+        <div class="eta" id="etaBox"></div>
+
+    </div>
+
+    <!-- MAP -->
+    <div class="card">
+
+        <div id="map"></div>
+
+    </div>
+
+    <!-- STATUS -->
+    <div class="card">
+
+        <div class="status-bar">
+
+            <div class="step active">
+                ✓ Picked Up
+            </div>
+
+            <div class="step active">
+                🚚 In Transit
+            </div>
+
+            <div class="step">
+                📦 Delivered
+            </div>
+
+        </div>
+
+    </div>
+
+    <!-- BUTTONS -->
+    <div class="buttons">
+
+        <button class="call">
+            📞 Call Driver
+        </button>
+
+        <button class="message">
+            💬 Message
+        </button>
+
+    </div>
+
+</div>
+
+<script>
+
+// ---------------- GET DATA ----------------
+const data = JSON.parse(localStorage.getItem("trackingData"));
+
+// protection
+if (!data) {
+    alert("No tracking data found");
+    window.location.href = "/";
+}
+
+// ---------------- LANGUAGE ----------------
+const lang = localStorage.getItem("lang") || "en";
+
+const t = {
+
+    en: {
+        title: "🚛 AGROLINK LIVE TRACKING",
+        crop: "Crop",
+        route: "Route",
+        driver: "Driver",
+        vehicle: "Vehicle",
+        weather: "Weather",
+        risk: "Spoilage Risk",
+        eta: "ETA"
+    },
+
+    hi: {
+        title: "🚛 लाइव ट्रैकिंग",
+        crop: "फसल",
+        route: "मार्ग",
+        driver: "ड्राइवर",
+        vehicle: "वाहन",
+        weather: "मौसम",
+        risk: "सड़ने का जोखिम",
+        eta: "आगमन समय"
+    },
+
+    kn: {
+        title: "🚛 ಲೈವ್ ಟ್ರ್ಯಾಕಿಂಗ್",
+        crop: "ಬೆಳೆ",
+        route: "ಮಾರ್ಗ",
+        driver: "ಚಾಲಕ",
+        vehicle: "ವಾಹನ",
+        weather: "ಹವಾಮಾನ",
+        risk: "ಹಾಳಾಗುವ ಅಪಾಯ",
+        eta: "ಅಂದಾಜು ಸಮಯ"
+    }
+};
+
+// ---------------- TITLE ----------------
+document.getElementById("title").innerText =
+t[lang].title;
+
+// ---------------- ORDER ID ----------------
+document.getElementById("orderId").innerText =
+data.order_id;
+
+// ---------------- INFO ----------------
+document.getElementById("trackingInfo").innerHTML = `
+
+<p><b>${t[lang].crop}:</b>
+${data.crop} (${data.quantity} kg)</p>
+
+<p><b>${t[lang].route}:</b>
+${data.route}</p>
+
+<p><b>${t[lang].driver}:</b>
+${data.transporter}</p>
+
+<p><b>${t[lang].vehicle}:</b>
+${data.recommended_vehicle}</p>
+
+<p><b>${t[lang].weather}:</b>
+${data.weather}</p>
+
+<p><b>${t[lang].risk}:</b>
+${data.spoilage_risk}</p>
+
+`;
+
+// ---------------- ETA ----------------
+document.getElementById("etaBox").innerHTML =
+`${t[lang].eta}: ${data.eta}`;
+
+
+// ===================================================
+// ROUTE OPTIMIZER MAP
+// ===================================================
+
+// Create map
+const map = L.map('map').setView([12.9716, 77.5946], 6);
+
+// Map layer
+L.tileLayer(
+'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
+{
+    attribution: '© OpenStreetMap contributors'
+}).addTo(map);
+
+
+// Example Coordinates
+// Bangalore → Chennai
+// Later you can make dynamic coordinates
+
+const pickupCoords = [12.9716, 77.5946];
+
+const destinationCoords = [13.0827, 80.2707];
+
+
+// Pickup Marker
+L.marker(pickupCoords)
+.addTo(map)
+.bindPopup("Pickup Location")
+.openPopup();
+
+
+// Destination Marker
+L.marker(destinationCoords)
+.addTo(map)
+.bindPopup("Destination");
+
+
+// ROUTE API
+fetch(`https://router.project-osrm.org/route/v1/driving/
+${pickupCoords[1]},${pickupCoords[0]};
+${destinationCoords[1]},${destinationCoords[0]}
+?overview=full&geometries=geojson`)
+
+.then(response => response.json())
+
+.then(data => {
+
+    const route =
+    data.routes[0].geometry.coordinates;
+
+    const latlngs = route.map(coord => [
+        coord[1],
+        coord[0]
+    ]);
+
+    // Draw Route
+    const polyline = L.polyline(latlngs, {
+
+        color: 'green',
+        weight: 5
+
+    }).addTo(map);
+
+    // Zoom automatically
+    map.fitBounds(polyline.getBounds());
+
+});
+
+</script>
+
+</body>
+</html>
